@@ -1,0 +1,15 @@
+menu.upload=Upload method
+
+logo8.name=Siemens LOGO! 8.2 (Ethernet)
+logo8.build.mcu=cortex-m4
+logo8.build.f_cpu=120000000L
+logo8.build.core=tivac
+logo8.build.arch=tivac
+logo8.build.variant=logo8
+logo8.build.ldscript=logo8.ld
+logo8.build.board=LOGO8_TM4C1294
+logo8.upload.tool=logoeth
+logo8.upload.protocol=logoeth
+logo8.upload.maximum_size=917504
+logo8.upload.maximum_data_size=262144
+logo8.upload.port.address=192.168.2.4
