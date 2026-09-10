@@ -6,8 +6,17 @@
 
 MEMORY 
 {
-    flash (rx) : ORIGIN = 0x00020000, LENGTH = 0x000E0000 
-    ram  (rwx) : ORIGIN = 0x20000000, LENGTH = 0x00040000 
+    /* Set by the LOGO bootloader partition, not by the chip:
+     *  - flash starts at 0x28000 because the BASE bootloader region is 48 KB
+     *    (0x18000..0x23FFF, hosting the resident panel + RTC + ABI table) with
+     *    the boot-info sector at 0x24000 below the application.
+     *  - RAM starts at 0x20002000 because the bottom 8 KB holds bootloader
+     *    state that stays LIVE while the application runs (panel framebuffer,
+     *    menu, config cache) — the application drives it through the ABI.
+     * Both must match logo-boot/bootcfg.h; changing either means re-flashing
+     * the bootloader too. */
+    flash (rx) : ORIGIN = 0x00028000, LENGTH = 0x000D8000 
+    ram  (rwx) : ORIGIN = 0x20002000, LENGTH = 0x0003E000 
 }
 
 /* STACK_SIZE = DEFINED(STACK_SIZE) ? STACK_SIZE : 0x800 ; */

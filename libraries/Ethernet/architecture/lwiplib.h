@@ -110,6 +110,7 @@ extern bool lwIPLinkActive(void);
 extern void lwIPLocalMACGet(uint8_t *pui8Mac);
 extern void lwIPNetworkConfigChange(uint32_t ui32IPAddr, uint32_t ui32NetMask,
                                     uint32_t ui32GWAddr, uint32_t ui32IPMode);
+extern void lwIPNetworkAnnounce(void);
 extern uint32_t lwIPAcceptUDPPort(uint16_t ui16Port);
 extern void lwIPNetifSetStatusCallback(netif_status_callback_fn status_callback);
 extern bool lwIPDHCPWaitLeaseValid(void);
