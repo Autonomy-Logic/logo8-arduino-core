@@ -12,15 +12,15 @@
         {
           "name": "Autonomy Logic TM4C (LOGO! 8.2)",
           "architecture": "tm4c",
-          "version": "0.2.1",
+          "version": "0.2.2",
           "category": "Contributed",
           "help": {
             "online": "https://autonomylogic.com"
           },
-          "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.2.1/autonomylogic-tm4c-0.2.1.tar.bz2",
-          "archiveFileName": "autonomylogic-tm4c-0.2.1.tar.bz2",
-          "checksum": "SHA-256:10c0ca911055eda50186475d58b06fa29dd951a239f78de7c1b6dcde52decfca",
-          "size": "2770851",
+          "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.2.2/autonomylogic-tm4c-0.2.2.tar.bz2",
+          "archiveFileName": "autonomylogic-tm4c-0.2.2.tar.bz2",
+          "checksum": "SHA-256:4b2733c5caab22db27181e8d5f1dc7b341d11514fc1806a9935b47c5bb3ca80f",
+          "size": "2769061",
           "boards": [
             {
               "name": "Siemens LOGO! 8.2 (Ethernet)"

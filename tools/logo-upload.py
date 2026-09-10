@@ -22,8 +22,6 @@ try:
 except AttributeError:        # Python < 3.7
     pass
 
-TAG_BWRQ = 0x51525742
-TAG_ABWRQ= 0x71727762
 TAG_WRQ  = 0x31515257
 TAG_AWRQ = 0x51525741
 TAG_DATA = 0x31544144
@@ -38,8 +36,7 @@ ROLE_BOOTLOADER = 0
 ROLE_APP = 1
 ST_OK = 0
 ST_NAMES = {0:"OK",1:"image too large",2:"erase failed",3:"out-of-order block",
-            4:"flash write failed",5:"CRC mismatch",6:"protocol state error",
-            7:"wrong target for this device role"}
+            4:"flash write failed",5:"CRC mismatch",6:"protocol state error"}
 
 def log(v, *a):
     if v: print(*a, file=sys.stderr)
@@ -237,13 +234,6 @@ def main():
     ap.add_argument("--port", type=int, default=24)
     ap.add_argument("--timeout", type=float, default=1.0)
     ap.add_argument("--retries", type=int, default=20)
-    ap.add_argument("--target", choices=("app", "base"), default="app",
-                    help="app  = the user application, flashed BY THE LOADER "
-                         "(default); base = the resident loader itself, flashed "
-                         "BY THE RUNNING APPLICATION. `base` takes the packaged "
-                         "update container, not a bare .bin, because it also "
-                         "carries the firmware manifest the device stores "
-                         "alongside the image.")
     ap.add_argument("--no-reboot", action="store_true",
                     help="skip the IDENT/REBOOT handshake (device already in bootloader)")
     ap.add_argument("--verbose", action="store_true")
@@ -255,37 +245,9 @@ def main():
     crc = zlib.crc32(img) & 0xFFFFFFFF
     print(f"[logo-upload] {args.firmware}: {total} bytes, crc32=0x{crc:08X} -> {args.host}:{args.port}")
 
-    base = args.target == "base"
-    if base:
-        # Sanity-check the container before touching the device: it must be the
-        # packaged update (payload + 120-byte manifest), because a bare .bin
-        # would leave the device's firmware manifest describing the OLD image.
-        if len(img) < 136 or struct.unpack_from("<I", img, len(img) - 4)[0] != 0xAAAAAAAA:
-            print("[logo-upload] --target base needs the PACKAGED update "
-                  "container, not a bare firmware .bin.")
-            return 7
-        plen, pcrc, pload = struct.unpack_from("<III", img, len(img) - 16)
-        print(f"[logo-upload] BASE container: payload {plen} bytes -> 0x{pload:05X}, "
-              f"crc32=0x{pcrc:08X}, manifest -> 0xFC000")
-
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        if base:
-            # The BASE is flashed BY THE RUNNING APPLICATION (a loader cannot
-            # erase the pages it executes from), so here we need the app up —
-            # the exact opposite of an app upload. Say so rather than silently
-            # timing out against a device sitting in its loader.
-            role = ident(s, args.host, args.port)
-            if role == ROLE_BOOTLOADER:
-                print("[logo-upload] the device is in its LOADER. A BASE update has "
-                      "to be driven by the running application — upload an application "
-                      "first, then retry.")
-                return 5
-            if role is None:
-                print("[logo-upload] no reply on the management port — the running "
-                      "application must serve it to accept a BASE update.")
-                return 5
-        elif not args.no_reboot:
+        if not args.no_reboot:
             # If a user app is running, ask it to reboot into the bootloader
             # first (the network equivalent of the Arduino RTS reset).
             r = ensure_bootloader(s, args.host, args.port, args.verbose)
@@ -294,12 +256,12 @@ def main():
             if not r:
                 return 5
 
-        # WRQ/BWRQ. The device erases the target flash here, but a single page
-        # erase is only a few ms, so a short timeout is fine — and keeping it
-        # short lets WRQ spam ~2/sec to reliably catch the bootloader's ~2.5 s
-        # boot window during a power-cycle transition.
-        wrq = struct.pack("<III", TAG_BWRQ if base else TAG_WRQ, total, crc)
-        rep = xchg(s, args.host, args.port, wrq, TAG_ABWRQ if base else TAG_AWRQ,
+        # WRQ. The device erases the target flash here, but a single page erase
+        # is only a few ms, so a short timeout is fine — and keeping it short
+        # lets WRQ spam ~2/sec to reliably catch the bootloader's ~2.5 s boot
+        # window during a power-cycle transition.
+        wrq = struct.pack("<III", TAG_WRQ, total, crc)
+        rep = xchg(s, args.host, args.port, wrq, TAG_AWRQ,
                    min(args.timeout, 0.5), args.retries, args.verbose)
         _, status, blk = struct.unpack_from("<III", rep, 0)
         if status != ST_OK:
@@ -322,39 +284,19 @@ def main():
                 print(f"\r[logo-upload] {seq+1}/{nblocks} blocks ({pct}%)", end="", flush=True)
         print()
 
-        # FIN -> the device verifies what it received and only then commits.
-        # For an app upload it records boot-info and jumps; for a BASE update it
-        # erases and reprograms the bootloader region from RAM and resets. Either
-        # way it may act before its AFIN reaches us, so a missing AFIN is treated
-        # as probable success rather than failure.
+        # FIN -> the device verifies the image, records boot-info and jumps to
+        # it. It may jump before its AFIN reaches us, so a missing AFIN is
+        # treated as probable success rather than failure.
         try:
             rep = xchg(s, args.host, args.port, struct.pack("<I", TAG_FIN), TAG_AFIN,
-                       max(args.timeout, 3.0), 1 if base else args.retries, args.verbose)
+                       max(args.timeout, 3.0), args.retries, args.verbose)
             _, status = struct.unpack_from("<II", rep, 0)
             if status != ST_OK:
                 print(f"[logo-upload] FIN failed: {ST_NAMES.get(status, status)}"); return 4
-            if base:
-                print("[logo-upload] image accepted — the device is now erasing and "
-                      "reprogramming its bootloader, then resetting. Do not power it off.")
-            else:
-                print("[logo-upload] success — device verified image and is starting the application.")
+            print("[logo-upload] success — device verified image and is starting the application.")
         except TimeoutError:
-            if base:
-                print("[logo-upload] no final ACK — the device most likely accepted the "
-                      "image and is committing it. Do not power it off.")
-            else:
-                print("[logo-upload] no final ACK — the device likely verified the image and "
-                      "already jumped to the application. Check the device (relays/behavior).")
-        if base:
-            # It resets into the freshly written bootloader, which finds no app
-            # for the NEW partition and stays in its recovery loop. Confirm.
-            print("[logo-upload] waiting for the new loader to come up...")
-            if wait_for_bootloader(s, args.host, args.port, tries=60, verbose=args.verbose):
-                print("[logo-upload] BASE update complete. Upload an application next.")
-                return 0
-            print("[logo-upload] the new loader did not answer. If it stays silent, "
-                  "recover with an SD-card update.")
-            return 8
+            print("[logo-upload] no final ACK — the device likely verified the image and "
+                  "already jumped to the application. Check the device (relays/behavior).")
         return 0
     finally:
         s.close()
