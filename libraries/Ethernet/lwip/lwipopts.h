@@ -214,7 +214,20 @@
 //*****************************************************************************
 #define LWIP_TCP                        1
 //#define TCP_TTL                         (IP_DEFAULT_TTL)
-#define TCP_WND                         4096   // default is 2048
+// Receive window.  Raised from the stock Energia 4096 (only ~2.8x the
+// effective 1460-byte MSS, under lwIP's own recommended 4x in opt.h) to 8x.
+//
+// A 4 KB window caps in-flight data at under three segments, so every 8 KB
+// OPC-UA message chunk costs several round trips. OPC-UA Part 6 6.7.1 requires
+// a conformant endpoint to handle an 8192-byte chunk, so that is the normal
+// case and not an edge one. Modbus frames are a few hundred bytes and never
+// noticed.
+//
+// NOTE: TCP_MSS below is 1500, which lwIP clamps to 1460 on every path via
+// tcp_eff_send_mss() (TCP_CALCULATE_EFF_SEND_MSS defaults to 1). 8 * 1460 is
+// the real window; written out rather than derived from TCP_MSS so it is not
+// silently 8 * 1500 of bookkeeping for segments that can never be that large.
+#define TCP_WND                         11680  // 8 * 1460 (stock Energia: 4096)
 //#define TCP_MAXRTX                      12
 //#define TCP_SYNMAXRTX                   6
 //#define TCP_QUEUE_OOSEQ                 1

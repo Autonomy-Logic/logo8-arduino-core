@@ -2,3 +2,8 @@
 # asset, not committed (the index points at the release URL).
 autonomylogic-tm4c-*.tar.bz2
 .DS_Store
+
+# OPC-UA cross-build scratch: the pinned open62541 checkout and the built
+# archives. Reproduced by tools/opcua/build-open62541.sh, so not versioned.
+.opcua-build/
+dist/opcua/
