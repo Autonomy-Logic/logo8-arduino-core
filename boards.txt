@@ -10,6 +10,8 @@ logo8.build.ldscript=logo8.ld
 logo8.build.board=LOGO8_TM4C1294
 logo8.upload.tool=logoeth
 logo8.upload.protocol=logoeth
-logo8.upload.maximum_size=917504
-logo8.upload.maximum_data_size=262144
+# 864 KB: flash from the app base 0x28000 to the end of the 1 MB part.
+logo8.upload.maximum_size=884736
+# 248 KB: SRAM above the 8 KB reserved for the bootloader's resident state.
+logo8.upload.maximum_data_size=253952
 logo8.upload.port.address=192.168.2.4

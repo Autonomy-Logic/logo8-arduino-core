@@ -89,6 +89,7 @@ extern void lwIPHostTimerHandler(void);
 #include "lwip/dns.h"
 #include "lwip/autoip.h"
 #include "lwip/init.h"
+#include "netif/etharp.h"
 #include "netif/tivaif.h"
 #if !NO_SYS
 #if RTOS_FREERTOS
@@ -1262,6 +1263,34 @@ lwIPNetworkConfigChange(uint32_t ui32IPAddr, uint32_t ui32NetMask,
     lwIPPrivateNetworkConfigChange((void *)ui32IPMode);
 #else
     tcpip_callback(lwIPPrivateNetworkConfigChange, (void *)ui32IPMode);
+#endif
+}
+
+//*****************************************************************************
+//
+//! Re-announces the interface's current IP address with a gratuitous ARP.
+//!
+//! lwIPNetworkConfigChange() rebinds the interface but does not tell the rest
+//! of the segment: every peer and switch still has the OLD address cached
+//! against our MAC, so until those entries age out (minutes) traffic keeps
+//! going to an address we no longer answer on. Call this straight after a
+//! runtime address change to update them immediately.
+//!
+//! Does nothing when the interface or the link is down, or when this is not an
+//! Ethernet/ARP interface -- in each case there is nothing to announce to.
+//!
+//! \return None.
+//
+//*****************************************************************************
+void
+lwIPNetworkAnnounce(void)
+{
+#if LWIP_ARP
+    if(netif_is_up(&g_sNetIF) && (g_sNetIF.flags & NETIF_FLAG_LINK_UP) &&
+       (g_sNetIF.flags & NETIF_FLAG_ETHARP))
+    {
+        etharp_gratuitous(&g_sNetIF);
+    }
 #endif
 }
 

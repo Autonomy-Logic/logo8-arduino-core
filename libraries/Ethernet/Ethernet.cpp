@@ -20,7 +20,10 @@ void EthernetClass::begin(uint8_t *mac_address, IPAddress local_ip, IPAddress dn
 	 */
 	/* MAC selection, in order of preference:
 	 *   1. an address already present in EMAC_ADDR0H/L (read before lwIPInit
-	 *      resets the EMAC), for parts where USER0/USER1 are unprogrammed;
+	 *      resets the EMAC), for parts where USER0/USER1 are unprogrammed.
+	 *      On a board whose MAC lives off-chip this is how it arrives: the
+	 *      resident loader programs these registers once and every later
+	 *      stage inherits from them;
 	 *   2. USER0/USER1 if programmed;
 	 *   3. a fixed locally-administered fallback. */
 	uint32_t emacH = (*(volatile uint32_t *)0x400EC040u);   /* EMAC_ADDR0H: [15:0]=mac5,mac4 */
