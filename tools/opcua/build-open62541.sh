@@ -176,6 +176,72 @@ if [ "$ABI_PROBE" -eq 0 ]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Install as an Arduino PRECOMPILED LIBRARY inside this core.
+#
+# This is what makes the archive reachable from a sketch without any editor
+# change: arduino-cli discovers a library from the `#include` in the source,
+# and `precompiled=full` tells it to link the matching src/<arch>/lib*.a
+# instead of trying to compile sources it does not have. Exactly the mechanism
+# the editor already uses for libOpenPLCUserLib.a.
+#
+# Both `tm4c` (build.arch) and `cortex-m4` (build.mcu) are populated because
+# arduino-cli probes the arch directory first and the mcu directory second,
+# and which one it finds depends on the platform's own naming.
+# ---------------------------------------------------------------------------
+LIBDIR="$REPO_ROOT/libraries/open62541"
+if [ "$PROFILE" = "minimal" ]; then
+  echo "==> installing as a precompiled Arduino library"
+  rm -rf "$LIBDIR"
+  mkdir -p "$LIBDIR/src/tm4c" "$LIBDIR/src/cortex-m4"
+  cp -R "$OUT/include/open62541" "$LIBDIR/src/"
+  cp "$LIB" "$LIBDIR/src/tm4c/libopen62541.a"
+  cp "$LIB" "$LIBDIR/src/cortex-m4/libopen62541.a"
+  # Umbrella header at src/ root.
+  #
+  # Not a convenience: arduino-cli resolves a library by matching the
+  # BASENAME of an unresolved #include against headers at the library's src/
+  # root. A nested `#include <open62541/plugin/eventloop.h>` therefore matches
+  # nothing ("Alternatives for open62541/plugin/eventloop.h: []") and the
+  # library is never discovered, so its src/ never reaches the include path
+  # and the archive never reaches the link. One top-level header that the
+  # runtime includes first is what makes discovery fire — the same reason
+  # OpenPLCUserLib ships src/OpenPLCUserLib.h.
+  cat > "$LIBDIR/src/open62541.h" <<'UMBRELLA'
+/* open62541 umbrella header.
+ *
+ * Include THIS, not the nested <open62541/...> paths, from Arduino sources:
+ * arduino-cli discovers a library by basename at src/ root, so a nested
+ * include resolves to nothing and the precompiled archive is silently left
+ * out of the link. Including this file first puts <lib>/src on the include
+ * path, after which the nested headers below resolve normally.
+ */
+#ifndef OPEN62541_UMBRELLA_H
+#define OPEN62541_UMBRELLA_H
+#include <open62541/config.h>
+#include <open62541/types.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/nodestore.h>
+#endif /* OPEN62541_UMBRELLA_H */
+UMBRELLA
+
+  cat > "$LIBDIR/library.properties" <<'PROPS'
+name=open62541
+version=1.5.8
+author=open62541 authors
+maintainer=Autonomy Logic <noreply@autonomylogic.com>
+sentence=Pre-compiled OPC UA stack (open62541) for bare-metal Cortex-M targets
+paragraph=Cross-compiled with UA_ARCHITECTURE=none; the platform layer (clock, EventLoop, ConnectionManager) is supplied by the OpenPLC baremetal runtime. Built by tools/opcua/build-open62541.sh. MPL-2.0.
+category=Communication
+architectures=*
+precompiled=full
+PROPS
+  echo "    $LIBDIR ($(du -sh "$LIBDIR" | cut -f1))"
+fi
+
 echo
 echo "==> $PROFILE: $OUT/libopen62541.a  (ABI verified: Thumb, VFP register args)"
 "$TOOLCHAIN_BIN/arm-none-eabi-size" -t "$LIB" | tail -1 | \
