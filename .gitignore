@@ -1,0 +1,4 @@
+# Build artefacts from package.sh — the archive is published as a release
+# asset, not committed (the index points at the release URL).
+autonomylogic-tm4c-*.tar.bz2
+.DS_Store
