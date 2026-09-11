@@ -14,6 +14,15 @@ class EthernetClient : public Client {
 public:
 	EthernetClient();
 	EthernetClient(struct client *c);
+	/* `cs` points either at a slot owned by an EthernetServer or at this
+	 * object's OWN client_state. The implicitly generated copy operations
+	 * copy the pointer verbatim, so copying a self-owned client left the
+	 * copy pointing into the SOURCE object -- dangling as soon as the source
+	 * went out of scope, which for a returned-by-value client is immediately.
+	 * Today's call sites are saved by copy elision; these make it correct
+	 * rather than lucky. */
+	EthernetClient(const EthernetClient &other);
+	EthernetClient &operator=(const EthernetClient &other);
 
 	uint8_t status();
 	virtual int connect(IPAddress ip, uint16_t port);
@@ -43,7 +52,19 @@ private:
 	struct client client_state;
 	volatile bool _connected;
 	struct client *cs;
+	/* The generation this handle was created with. See struct client. */
+	uint16_t _generation;
 
+	/* True once the slot this handle refers to has been recycled for a
+	 * different connection. A stale handle must behave exactly like a closed
+	 * one: report not-connected, read nothing, write nothing, and above all
+	 * NOT stop() -- which would tear down whichever innocent peer now owns
+	 * the slot. */
+	bool stale() const {
+		return (cs != &client_state) && (cs->generation != _generation);
+	}
+
+	void copyFrom(const EthernetClient &other);
 	int readLocked();
 };
 #endif

@@ -3,6 +3,7 @@
 #include "Ethernet.h"
 #include "EthernetClient.h"
 #include "EthernetServer.h"
+#include <string.h>
 
 #include "driverlib/interrupt.h"
 
@@ -20,6 +21,8 @@ EthernetClient::EthernetClient() {
 	cs->mode = true;
 	cs->cpcb = NULL;
 	cs->p = NULL;
+	cs->generation = 0;   /* self-owned: never recycled, never stale */
+	_generation = 0;
 }
 
 EthernetClient::EthernetClient(struct client *c) {
@@ -28,11 +31,51 @@ EthernetClient::EthernetClient(struct client *c) {
 		cs = &client_state;
 		cs->cpcb = NULL;
 		cs->p = NULL;
+		cs->generation = 0;
+		_generation = 0;
 		return;
 	}
 	_connected = true;
 	cs = c;
 	cs->mode = false;
+	/* Capture the identity of the connection occupying the slot RIGHT NOW.
+	 * If the slot is later recycled, stale() sees the mismatch. */
+	_generation = c->generation;
+}
+
+void EthernetClient::copyFrom(const EthernetClient &other) {
+	/* struct client has volatile members, so copy the bytes rather than
+	 * relying on an implicit member-wise copy. */
+	memcpy((void*)&client_state, (const void*)&other.client_state,
+	       sizeof(struct client));
+	_connected  = other._connected;
+	_generation = other._generation;
+	/* Re-point at OUR OWN storage when the source was self-owned; otherwise
+	 * both handles legitimately refer to the same server slot. */
+	cs = (other.cs == &other.client_state) ? &client_state : other.cs;
+}
+
+EthernetClient::EthernetClient(const EthernetClient &other) {
+	copyFrom(other);
+}
+
+EthernetClient &EthernetClient::operator=(const EthernetClient &other) {
+	if (this != &other)
+		copyFrom(other);
+	return *this;
+}
+
+/* Retry a close that could not complete. Deliberately ignores `arg`: the
+ * accepted-connection callback arg is a struct client*, and the old code
+ * installed EthernetClient::do_poll here, which casts arg to EthernetClient*
+ * -- a type confusion that read a server or a slot as if it were a client
+ * object. Nothing about retrying a close needs either. */
+static err_t close_retry_poll(void *arg, struct tcp_pcb *cpcb) {
+	(void)arg;
+	err_t err = tcp_close(cpcb);
+	if (err != ERR_OK)
+		tcp_poll(cpcb, close_retry_poll, 4);
+	return err;
 }
 
 err_t EthernetClient::do_poll(void *arg, struct tcp_pcb *cpcb) {
@@ -210,6 +253,9 @@ size_t EthernetClient::write(const uint8_t *buf, size_t size) {
 	uint32_t i = 0, inc = 0;
 	boolean stuffed_buffer = false;
 
+	if (stale())
+		return 0;   /* the slot belongs to someone else now */
+
 	struct tcp_pcb * cpcb = (tcp_pcb*)cs->cpcb; /* cs->cpcb may change to NULL during interrupt servicing */
 
 	if (!cpcb)
@@ -244,6 +290,8 @@ size_t EthernetClient::write(const uint8_t *buf, size_t size) {
 }
 
 int EthernetClient::available() {
+	if (stale())
+		return 0;
 	struct pbuf * p = (pbuf*)cs->p; /* cs->p may change to NULL during interrupt servicing */
 	if (!p)
 		return 0;
@@ -251,6 +299,8 @@ int EthernetClient::available() {
 }
 
 int EthernetClient::port() {
+	if (stale())
+		return 0;
 	return cs->port;
 }
 
@@ -359,12 +409,26 @@ void EthernetClient::stop() {
 	/* protect the code from preemption of the ethernet interrupt servicing */
 	INT_PROTECT(oldLevel);
 
+	if (stale()) {
+		/* Closing this would tear down whichever connection now owns the
+		 * slot. Just forget it: our own connection is long gone. */
+		_connected = false;
+		INT_UNPROTECT(oldLevel);
+		return;
+	}
+
 	struct tcp_pcb * cpcb_copy = (tcp_pcb *) SYNC_FETCH_AND_NULL(&cs->cpcb);
 	struct pbuf * p_copy = (pbuf *) SYNC_FETCH_AND_NULL(&cs->p);
 	_connected = false;
 	cs->port = 0;
 
 	if (cpcb_copy) {
+		/* Detach every callback before closing: after this point the slot
+		 * this pcb pointed at may be recycled, and a late callback carrying
+		 * the old arg must not run. */
+		tcp_arg(cpcb_copy, NULL);
+		tcp_recv(cpcb_copy, NULL);
+		tcp_sent(cpcb_copy, NULL);
 		tcp_err(cpcb_copy, NULL);
 
 		if (p_copy) {
@@ -376,7 +440,7 @@ void EthernetClient::stop() {
 
 		if (err != ERR_OK) {
 			/* Error closing, try again later in poll (every 2 sec) */
-			tcp_poll(cpcb_copy, do_poll, 4);
+			tcp_poll(cpcb_copy, close_retry_poll, 4);
 		}
 	}
 
@@ -384,11 +448,37 @@ void EthernetClient::stop() {
 }
 
 uint8_t EthernetClient::connected() {
+	/* _connected is a flag on THIS handle, so it stays true after the slot has
+	 * been recycled -- the stale() test has to come first or a handle onto
+	 * someone else's connection reports itself connected. */
+	if (stale())
+		return 0;
+
+	if (cs != &client_state) {
+		/*
+		 * Server-accepted connection: liveness is entirely a property of the
+		 * SLOT, so do not consult _connected at all.
+		 *
+		 * _connected is the outbound-connect handshake flag (do_connected /
+		 * do_err set it while ::connect spins). The server-side constructor
+		 * also sets it true, and nothing ever clears it -- so once a peer
+		 * disconnected with no new connection replacing it, connected()
+		 * returned TRUE FOREVER: available() is 0 and status() is CLOSED, but
+		 * `|| _connected` carried the result. A sketch that retires a
+		 * connection on !connected() -- which is the documented idiom -- would
+		 * therefore never retire that one, and the slot leaked until some
+		 * unrelated peer happened to recycle it.
+		 */
+		return (available() || (status() == ESTABLISHED));
+	}
+
 	/* TODO: test the local client mode and _connected flag */
 	return (available() || (status() == ESTABLISHED) || _connected);
 }
 
 uint8_t EthernetClient::status() {
+	if (stale())
+		return CLOSED;
 	struct tcp_pcb * cpcb = (tcp_pcb*)cs->cpcb;
 	if (cpcb == NULL)
 		return CLOSED;
