@@ -1,6 +1,7 @@
 #include "Ethernet.h"
 #include "EthernetClient.h"
 #include "EthernetServer.h"
+#include <string.h>
 
 /* SYNC_FETCH_AND_NULL: atomic{ tmp=*x; *x=NULL; return tmp; } */
 #define SYNC_FETCH_AND_NULL(x)   (__sync_fetch_and_and(x, NULL))
@@ -8,6 +9,9 @@
 EthernetServer::EthernetServer(uint16_t port) {
 	_port = port;
 	lastConnect = 0;
+	_generation = 0;
+	lastClient = 0;
+	memset(clients, 0, sizeof(clients));
 }
 
 err_t EthernetServer::do_poll(void *arg, struct tcp_pcb *cpcb) {
@@ -25,10 +29,18 @@ err_t EthernetServer::do_poll(void *arg, struct tcp_pcb *cpcb) {
 
 void EthernetServer::do_close(void *arg, struct tcp_pcb *cpcb) {
 	/*
-	 * Get the server object from the argument
-	 * to get access to variables and functions
+	 * arg is the SLOT this connection was accepted into (set by do_accept),
+	 * so there is no lookup to get wrong.
+	 *
+	 * This used to search the table for `clients[i].port == cpcb->remote_port`.
+	 * Remote ports are NOT unique -- two peers on different hosts routinely
+	 * pick the same source port, and do_accept happily gives them two slots
+	 * carrying the same `port` value. The search then matched whichever came
+	 * first, so one connection's close (and, in do_recv, one connection's
+	 * DATA) was applied to the other. The pcb pointer is unique for the life
+	 * of the connection, and we already store it.
 	 */
-	EthernetServer *server = static_cast<EthernetServer*>(arg);
+	struct client * cs = static_cast<struct client*>(arg);
 
 	tcp_arg(cpcb, NULL);
 	tcp_recv(cpcb, NULL);
@@ -36,19 +48,13 @@ void EthernetServer::do_close(void *arg, struct tcp_pcb *cpcb) {
 	tcp_poll(cpcb, NULL, 0);
 	tcp_sent(cpcb, NULL);
 
-	uint8_t i;
-	for (i = 0; i < MAX_CLIENTS; i++) {
-		if (server->clients[i].port == cpcb->remote_port)
-			break;
-	}
-	if (i >= MAX_CLIENTS) {
-		/* connection already closed */
+	if (cs == NULL || cs->cpcb != cpcb) {
+		/* Slot already recycled for a newer connection, or already closed.
+		 * Touching it now would corrupt whoever owns it. */
 		return;
 	}
 
 	/* --- close the connection --- */
-
-	struct client * cs = &server->clients[i];
 
 	cs->read = 0;
 	cs->port = 0;
@@ -78,11 +84,9 @@ err_t EthernetServer::did_sent(void *arg, struct tcp_pcb *pcb, u16_t len) {
 err_t EthernetServer::do_recv(void *arg, struct tcp_pcb *cpcb, struct pbuf *p,
 		err_t err) {
 
-	/*
-	 * Get the server object from the argument
-	 * to get access to variables and functions
-	 */
-	EthernetServer *server = static_cast<EthernetServer*>(arg);
+	/* arg is the slot this connection was accepted into. See do_close() for
+	 * why the old remote_port search was wrong. */
+	struct client * cs = static_cast<struct client*>(arg);
 
 	/* p==0 for end-of-connection (TCP_FIN packet) */
 	if (p == 0) {
@@ -90,23 +94,50 @@ err_t EthernetServer::do_recv(void *arg, struct tcp_pcb *cpcb, struct pbuf *p,
 		return ERR_OK;
 	}
 
-	/* find the connection */
-	uint8_t i;
-	for (i = 0; i < MAX_CLIENTS; i++) {
-		if (server->clients[i].port == cpcb->remote_port)
-			break;
-	}
-	if (i >= MAX_CLIENTS) {
-		/* connection already closed - reject the data */
+	if (cs == NULL || cs->cpcb != cpcb) {
+		/* Data for a connection this slot no longer represents. */
 		return ERR_MEM;
 	}
 
-	if (server->clients[i].p != 0)
-		pbuf_cat((pbuf*)server->clients[i].p, p);
+	if (cs->p != 0)
+		pbuf_cat((pbuf*)cs->p, p);
 	else
-		server->clients[i].p = p;
+		cs->p = p;
 
 	return ERR_OK;
+}
+
+/*
+ * Fatal error on an accepted connection -- in practice a RST from the peer.
+ *
+ * do_accept() used to install no error callback at all, which is a
+ * use-after-free: on RST lwIP calls the (NULL) errf and then does
+ *
+ *     tcp_pcb_remove(&tcp_active_pcbs, pcb); memp_free(MEMP_TCP_PCB, pcb);
+ *
+ * (tcp_in.c), returning the pcb to the pool while this slot still held a
+ * pointer to it and a non-zero port. The next available() then read
+ * `cpcb->state` out of a recycled pool entry -- which, being a pool, is very
+ * likely a LIVE DIFFERENT connection -- and could hand the sketch a client
+ * whose writes go to the wrong peer.
+ *
+ * lwIP has already freed the pcb by the time we get here, so this must touch
+ * nothing but the slot: no tcp_close, no tcp_recved, no tcp_abort.
+ */
+void EthernetServer::do_err(void *arg, err_t err) {
+	(void)err;
+	struct client * cs = static_cast<struct client*>(arg);
+	if (cs == NULL)
+		return;
+
+	cs->cpcb = NULL;   /* the pcb is GONE -- drop the dangling pointer first */
+	cs->port = 0;
+	cs->read = 0;
+	cs->connected = false;
+	if (cs->p) {
+		pbuf_free((pbuf*)cs->p);
+		cs->p = NULL;
+	}
 }
 
 err_t EthernetServer::do_accept(void *arg, struct tcp_pcb *cpcb, err_t err) {
@@ -127,16 +158,29 @@ err_t EthernetServer::do_accept(void *arg, struct tcp_pcb *cpcb, err_t err) {
 		return ERR_MEM;
 	}
 
-	memset(&server->clients[i], 0, sizeof(struct client));
+	struct client * cs = &server->clients[i];
 
-	server->clients[i].port = cpcb->remote_port;
-	server->clients[i].cpcb = cpcb;
+	memset(cs, 0, sizeof(struct client));
+
+	/* Stamp the identity BEFORE the slot goes live. Skip 0, which means
+	 * "self-owned, never recycled" to EthernetClient. */
+	if (++server->_generation == 0)
+		server->_generation = 1;
+	cs->generation = server->_generation;
+	cs->cpcb = cpcb;
+	/* port last: a non-zero port is what marks the slot live to available(),
+	 * so everything else must already be consistent when it is set. */
+	cs->port = cpcb->remote_port;
 
 	tcp_accepted(server->spcb);
 
-	tcp_arg(cpcb, arg);
+	/* The SLOT, not the server: it is what every per-connection callback
+	 * needs, and it is the only thing tcp_err() gets (lwIP passes the
+	 * callback arg and no pcb, the pcb being freed by then). */
+	tcp_arg(cpcb, cs);
 	tcp_recv(cpcb, do_recv);
 	tcp_sent(cpcb, did_sent);
+	tcp_err(cpcb, do_err);
 
 	/*
 	 * Returning ERR_OK indicates to the stack the the
@@ -154,7 +198,6 @@ void EthernetServer::begin() {
 }
 
 EthernetClient EthernetServer::available() {
-	static uint8_t lastClient = 0; /* serve the clients in a round-robin fashion */
 	uint8_t i;
 	/* Find active client */
 	for (i = 0; i < MAX_CLIENTS; i++) {
@@ -168,6 +211,21 @@ EthernetClient EthernetServer::available() {
 		}
 	}
 	/* No client connection active */
+	return EthernetClient(NULL);
+}
+
+EthernetClient EthernetServer::accept() {
+	for (uint8_t i = 0; i < MAX_CLIENTS; i++) {
+		if (clients[i].port == 0 || clients[i].claimed)
+			continue;
+		/* cpcb may change to NULL during interrupt servicing */
+		struct tcp_pcb * cpcb = (tcp_pcb*)clients[i].cpcb;
+		if (cpcb && cpcb->state == ESTABLISHED) {
+			clients[i].claimed = true;
+			return EthernetClient(&clients[i]);
+		}
+	}
+	/* Nothing new */
 	return EthernetClient(NULL);
 }
 
