@@ -126,6 +126,15 @@ CMAKE_ARGS=(
   # <sys/socket.h>) is set inside the toolchain file for that reason.
   "-DUA_LOGLEVEL=600"
   "-DUA_MULTITHREADING=0"
+  # Route every allocation through swappable function pointers, which is this
+  # option's documented use case ("arena-based custom memory management").
+  #
+  # Load-bearing: without it UA_malloc resolves to the standard allocator at
+  # LIBRARY COMPILE TIME, so the runtime's static arena would be reserved,
+  # counted in the budget, and never used — open62541 would quietly allocate
+  # from the newlib heap the user program shares, which is the exact failure
+  # the arena exists to prevent, made invisible.
+  "-DUA_ENABLE_MALLOC_SINGLETON=ON"
 )
 
 case "$PROFILE" in

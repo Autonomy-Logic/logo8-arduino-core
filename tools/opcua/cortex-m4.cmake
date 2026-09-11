@@ -43,7 +43,14 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 # -Os / -ffunction-sections / -fdata-sections: also from platform.txt, so the
 #   archive is subject to the same --gc-sections the final link performs.
 set(ARM_ABI_FLAGS "-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16")
-set(ARM_OPT_FLAGS "-Os -ffunction-sections -fdata-sections")
+# -fno-unwind-tables / -fno-asynchronous-unwind-tables: without these the
+# archive carries .ARM.exidx exception-index tables, which drag libgcc's ARM
+# unwinder (unwind-arm.o) into the link. That unwinder calls abort(), which
+# newlib-nano under the core's -nostdlib does not provide, and the build fails
+# at link with "undefined reference to `abort'" pointing at libgcc rather than
+# at anything we wrote. There is nothing to unwind here — open62541 is C and
+# the runtime builds -fno-exceptions — so the tables are pure cost.
+set(ARM_OPT_FLAGS "-Os -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables")
 
 # The shim include path lives here rather than being passed as
 # -DCMAKE_C_FLAGS by the caller. That is not a style preference: CMAKE_C_FLAGS
