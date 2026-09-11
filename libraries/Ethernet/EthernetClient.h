@@ -32,6 +32,12 @@ public:
 	virtual size_t write(uint8_t);
 	virtual size_t write(const uint8_t *buf, size_t size);
 	virtual int available();
+	/** Bytes that can be queued right now without blocking.
+	 *
+	 *  write() spins on delay(1) when lwIP's send buffer is full, which inside
+	 *  a PLC scan cycle is unbounded blocking -- measured as a 1.27 SECOND
+	 *  stall against a 20 ms cycle. A caller that must not block asks first. */
+	int availableForWrite();
 	virtual int read();
 	virtual int port();
 	virtual int read(uint8_t *buf, size_t size);

@@ -19,6 +19,14 @@ struct client {
 	volatile struct tcp_pcb *cpcb;
 	volatile bool connected;
 	uint16_t read;
+	/* true for an OUTBOUND client (one that owns its own client_state), false
+	 * for a connection an EthernetServer accepted.
+	 *
+	 * It no longer gates anything. It used to decide whether write() called
+	 * tcp_output(), which meant a server's reply was queued and never pushed
+	 * until the 250 ms TCP timer -- see the note in EthernetClient::write().
+	 * Kept because it still records which kind of client this is; do NOT
+	 * reintroduce it as an output guard. */
 	bool mode;
 	/*
 	 * Connection identity.
