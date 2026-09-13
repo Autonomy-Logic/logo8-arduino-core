@@ -234,6 +234,8 @@ if [ "$PROFILE" = "minimal" ]; then
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/accesscontrol_default.h>
 #endif /* OPEN62541_UMBRELLA_H */
 UMBRELLA
 

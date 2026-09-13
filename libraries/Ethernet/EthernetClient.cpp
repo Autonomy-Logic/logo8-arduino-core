@@ -272,18 +272,35 @@ size_t EthernetClient::write(const uint8_t *buf, size_t size) {
 		} else {
 			if (!stuffed_buffer) {
 				// Buffer full; force output
-				if (cs->mode)
-					tcp_output(cpcb);
+				tcp_output(cpcb);
 				stuffed_buffer = true;
 			} else {
 				delay(1); // else wait a little bit for lwIP to flush its buffers
 			}
 		}
 	}
-	// flush any remaining queue contents
+	// Flush any remaining queue contents.
+	//
+	// This used to be gated on `cs->mode`, which is true only for an OUTBOUND
+	// client and false for every connection an EthernetServer accepted -- so a
+	// server's reply was written into lwIP's send queue and then never pushed.
+	// tcp_write() only enqueues; tcp_output() is what puts a segment on the
+	// wire.
+	//
+	// Nothing else rescued it in time. lwIP calls tcp_output() at the end of
+	// tcp_input() (tcp_in.c), but that runs while the INCOMING segment is being
+	// processed -- before the application has even seen the request, let alone
+	// queued an answer. In a request/response protocol the peer is by
+	// definition waiting and sends nothing more, so the reply sat in the queue
+	// until the periodic TCP timer flushed it: TCP_TMR_INTERVAL, 250 ms.
+	//
+	// Measured on a LOGO! 8.2 before this change, over 15 exchanges each:
+	//   Modbus FC03    median 250.0 ms   (min 71, max 250.2)
+	//   OPC-UA Read    ~311 ms
+	// Both are the timer, not the work. Modbus, the debugger and OPC-UA were
+	// all paying it, on every single request.
 	if (!stuffed_buffer) {
-		if (cs->mode)
-			tcp_output(cpcb);
+		tcp_output(cpcb);
 	}
 
 	return size;
@@ -296,6 +313,15 @@ int EthernetClient::available() {
 	if (!p)
 		return 0;
 	return p->tot_len - cs->read;
+}
+
+int EthernetClient::availableForWrite() {
+	if (stale())
+		return 0;
+	struct tcp_pcb * cpcb = (tcp_pcb*)cs->cpcb;
+	if (cpcb == NULL)
+		return 0;
+	return (int)tcp_sndbuf(cpcb);
 }
 
 int EthernetClient::port() {
