@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"hash/crc32"
+	"os"
 	"testing"
 )
 
@@ -201,5 +203,21 @@ func TestSplitPositionalAcceptsEitherOrder(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// There is no default device address, on purpose. A plausible default is what
+// turned the earlier flag-parsing bug into a silent upload to whatever host
+// happened to answer at it, instead of an error the user could see.
+func TestHostHasNoDefault(t *testing.T) {
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("cannot read main.go: %v", err)
+	}
+	if !bytes.Contains(src, []byte(`flag.String("host", "", `)) {
+		t.Error(`--host must be declared with an empty default`)
+	}
+	if bytes.Contains(src, []byte("192.168.")) {
+		t.Error("main.go must not carry a hardcoded device address")
 	}
 }

@@ -41,15 +41,19 @@ const (
 func main() { os.Exit(run()) }
 
 func run() int {
-	host := flag.String("host", "192.168.2.4", "device IP address")
+	// No default. A wrong-but-plausible default is how a dropped --host turns
+	// into a silent upload to whatever sits at that address; the flag-parsing
+	// bug this tool shipped once did exactly that.
+	host := flag.String("host", "", "device IP address (required)")
 	port := flag.Int("port", 24, "device management UDP port")
 	timeout := flag.Float64("timeout", 1.0, "per-exchange timeout in seconds")
 	retries := flag.Int("retries", 20, "retries per exchange")
 	noReboot := flag.Bool("no-reboot", false, "skip the IDENT/REBOOT handshake (device already in bootloader)")
 	verbose := flag.Bool("verbose", false, "log retries and protocol detail to stderr")
 	flag.Usage = func() {
-		fmt.Fprintf(stderr, "usage: logo-upload <firmware.bin> [--host IP] [--port N]\n"+
-			"                   [--timeout S] [--retries N] [--no-reboot] [--verbose]\n")
+		fmt.Fprintf(stderr, "usage: logo-upload <firmware.bin> --host <IP> [--port N]\n"+
+			"                   [--timeout S] [--retries N] [--no-reboot] [--verbose]\n\n"+
+			"  --host is required: there is no default device address.\n")
 	}
 	// arduino-cli's recipe puts the firmware path BEFORE the flags:
 	//   logo-upload <file> --host <ip> --verbose
@@ -61,6 +65,11 @@ func run() int {
 		return exitUsageError
 	}
 	if firmware == "" || flag.NArg() != 0 {
+		flag.Usage()
+		return exitUsageError
+	}
+	if strings.TrimSpace(*host) == "" {
+		fmt.Fprintln(stderr, "logo-upload: --host is required (no default device address)")
 		flag.Usage()
 		return exitUsageError
 	}

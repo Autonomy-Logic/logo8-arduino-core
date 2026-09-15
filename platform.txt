@@ -94,8 +94,11 @@ recipe.size.regex=\.text\s+([0-9]+).*
 recipe.size.regex.data=^(?:\.data|\.bss)\s+([0-9]+).*
 
 # --- Ethernet upload to the resident loader (no serial/JTAG) ---
-# {upload.port.address} carries the device IP (default 192.168.2.4). The tool
-# reboots a running app into the bootloader, then streams the .bin over UDP:24.
+# {upload.port.address} carries the device IP, from arduino-cli's --port. There
+# is deliberately no default: the tool refuses to run without one, so a dropped
+# address fails loudly instead of flashing whatever host it falls back to.
+# The tool reboots a running app into the bootloader, then streams the .bin
+# over UDP:24.
 #
 # Shipped as a self-contained binary through the board-manager index, so the
 # upload needs no interpreter on the host. See tools/logo-upload/.

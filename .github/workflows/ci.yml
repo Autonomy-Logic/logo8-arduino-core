@@ -105,6 +105,16 @@ jobs:
             || { echo "--host after the path was ignored"; exit 1; }
           printf '%s' "$out" | grep -qv 'usage: logo-upload' \
             || { echo "tool fell back to usage"; exit 1; }
+          # Without --host the tool must refuse, not fall back to an address.
+          # A plausible default is what turns a dropped flag into a silent
+          # upload to the wrong device.
+          set +e
+          noh="$("$TOOL" /tmp/fake.bin 2>&1)"; rc=$?
+          set -e
+          printf '%s\n' "$noh"
+          [ "$rc" -ne 0 ] || { echo "missing --host was accepted"; exit 1; }
+          printf '%s' "$noh" | grep -q -- '--host is required' \
+            || { echo "missing --host did not say so"; exit 1; }
       - name: Compile the example sketch
         run: |
           set -euo pipefail
@@ -117,4 +127,9 @@ jobs:
             echo "upload recipe depends on a host interpreter"; exit 1
           fi
           grep -q '^tools\.logoeth\.path={runtime\.tools\.logo-upload\.path}' platform.txt
-          echo "upload recipe is self-contained"
+          # No board may carry a default device address: the upload target must
+          # always come from the caller.
+          if grep -nE '^[a-z0-9_]+\.upload\.port\.address=' boards.txt; then
+            echo "boards.txt hardcodes an upload address"; exit 1
+          fi
+          echo "upload recipe is self-contained and has no default address"

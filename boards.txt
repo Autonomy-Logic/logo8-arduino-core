@@ -14,4 +14,3 @@ logo8.upload.protocol=logoeth
 logo8.upload.maximum_size=884736
 # 248 KB: SRAM above the 8 KB reserved for the bootloader's resident state.
 logo8.upload.maximum_data_size=253952
-logo8.upload.port.address=192.168.2.4
