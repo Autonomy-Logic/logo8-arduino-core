@@ -92,6 +92,19 @@ jobs:
           echo "installed at: $TOOL"
           set +e; "$TOOL" >/dev/null 2>&1; rc=$?; set -e
           [ "$rc" -eq 1 ] || { echo "tool did not run (exit $rc)"; exit 1; }
+          # Invoke it the way arduino-cli's recipe does: the firmware path
+          # BEFORE the flags. Go's flag package stops parsing at the first
+          # positional, so a regression here silently ignores --host and
+          # uploads to the default address. Assert the flags were seen.
+          head -c 64 /dev/urandom > /tmp/fake.bin
+          set +e
+          out="$("$TOOL" /tmp/fake.bin --host 203.0.113.1 --retries 1 --timeout 0.2 2>&1)"
+          set -e
+          printf '%s\n' "$out"
+          printf '%s' "$out" | grep -q '203.0.113.1' \
+            || { echo "--host after the path was ignored"; exit 1; }
+          printf '%s' "$out" | grep -qv 'usage: logo-upload' \
+            || { echo "tool fell back to usage"; exit 1; }
       - name: Compile the example sketch
         run: |
           set -euo pipefail

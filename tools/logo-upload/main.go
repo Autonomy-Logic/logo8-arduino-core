@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -50,13 +51,19 @@ func run() int {
 		fmt.Fprintf(stderr, "usage: logo-upload <firmware.bin> [--host IP] [--port N]\n"+
 			"                   [--timeout S] [--retries N] [--no-reboot] [--verbose]\n")
 	}
-	flag.Parse()
-
-	if flag.NArg() != 1 {
+	// arduino-cli's recipe puts the firmware path BEFORE the flags:
+	//   logo-upload <file> --host <ip> --verbose
+	// Go's flag package stops parsing at the first non-flag argument, so the
+	// flags would be silently ignored. Lift the positional out first and parse
+	// what remains, which accepts either order.
+	firmware, rest := splitPositional(os.Args[1:])
+	if err := flag.CommandLine.Parse(rest); err != nil {
+		return exitUsageError
+	}
+	if firmware == "" || flag.NArg() != 0 {
 		flag.Usage()
 		return exitUsageError
 	}
-	firmware := flag.Arg(0)
 
 	img, err := os.ReadFile(firmware)
 	if err != nil {
@@ -153,4 +160,31 @@ func run() int {
 	}
 	outf("[logo-upload] success — device verified image and is starting the application.")
 	return exitOK
+}
+
+// splitPositional returns the first bare argument and everything else, so the
+// firmware path may appear before or after the flags. A value that belongs to
+// a preceding flag (--host 1.2.3.4) is not mistaken for the positional.
+func splitPositional(args []string) (string, []string) {
+	takesValue := map[string]bool{"-host": true, "-port": true, "-timeout": true, "-retries": true}
+	var positional string
+	rest := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if strings.HasPrefix(a, "-") {
+			rest = append(rest, a)
+			name := strings.TrimLeft(a, "-")
+			if !strings.Contains(a, "=") && takesValue["-"+name] && i+1 < len(args) {
+				i++
+				rest = append(rest, args[i])
+			}
+			continue
+		}
+		if positional == "" {
+			positional = a
+			continue
+		}
+		rest = append(rest, a)
+	}
+	return positional, rest
 }

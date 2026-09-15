@@ -140,3 +140,66 @@ func TestBlockPartitioning(t *testing.T) {
 		}
 	}
 }
+
+// arduino-cli's upload recipe puts the firmware path BEFORE the flags:
+//
+//	logo-upload <file> --host <ip> --verbose
+//
+// Go's flag package stops parsing at the first non-flag argument, so without
+// splitPositional every flag after the path is silently ignored and the upload
+// goes to the default host. This shipped once; it must not ship again.
+func TestSplitPositionalAcceptsEitherOrder(t *testing.T) {
+	cases := []struct {
+		name     string
+		args     []string
+		wantPos  string
+		wantRest []string
+	}{
+		{
+			"arduino-cli order (path first)",
+			[]string{"fw.bin", "--host", "192.168.2.5", "--verbose"},
+			"fw.bin",
+			[]string{"--host", "192.168.2.5", "--verbose"},
+		},
+		{
+			"flags first",
+			[]string{"--host", "192.168.2.5", "--verbose", "fw.bin"},
+			"fw.bin",
+			[]string{"--host", "192.168.2.5", "--verbose"},
+		},
+		{
+			"equals form keeps its value attached",
+			[]string{"fw.bin", "--host=192.168.2.5", "--retries", "3"},
+			"fw.bin",
+			[]string{"--host=192.168.2.5", "--retries", "3"},
+		},
+		{
+			"a flag value is never mistaken for the positional",
+			[]string{"--host", "192.168.2.5", "fw.bin"},
+			"fw.bin",
+			[]string{"--host", "192.168.2.5"},
+		},
+		{
+			"boolean flag before the path",
+			[]string{"--no-reboot", "fw.bin"},
+			"fw.bin",
+			[]string{"--no-reboot"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			pos, rest := splitPositional(c.args)
+			if pos != c.wantPos {
+				t.Errorf("positional = %q, want %q", pos, c.wantPos)
+			}
+			if len(rest) != len(c.wantRest) {
+				t.Fatalf("rest = %v, want %v", rest, c.wantRest)
+			}
+			for i := range rest {
+				if rest[i] != c.wantRest[i] {
+					t.Errorf("rest[%d] = %q, want %q", i, rest[i], c.wantRest[i])
+				}
+			}
+		})
+	}
+}
