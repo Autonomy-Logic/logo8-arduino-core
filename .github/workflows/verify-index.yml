@@ -1,0 +1,24 @@
+name: Verify published index
+
+# The published index is the only thing consumers read. If it names a URL that
+# does not resolve, or a checksum that does not match, every install fails --
+# and the failure surfaces to users, not to us. Check it on a schedule and
+# whenever it changes.
+on:
+  push:
+    branches: [main]
+    paths: ['package_autonomylogic_tm4c_index.json']
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download every asset and check size and SHA-256
+        run: python3 tools/ci/verify-index.py package_autonomylogic_tm4c_index.json

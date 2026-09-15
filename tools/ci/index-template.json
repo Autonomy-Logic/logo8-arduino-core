@@ -1,0 +1,71 @@
+{
+  "packages": [
+    {
+      "name": "autonomylogic",
+      "maintainer": "Autonomy Logic",
+      "websiteURL": "https://autonomylogic.com",
+      "email": "support@autonomylogic.com",
+      "help": {
+        "online": "https://autonomylogic.com"
+      },
+      "platforms": [
+        {
+          "name": "Autonomy Logic TM4C (LOGO! 8.2)",
+          "architecture": "tm4c",
+          "version": "",
+          "category": "Contributed",
+          "help": {
+            "online": "https://autonomylogic.com"
+          },
+          "url": "",
+          "archiveFileName": "",
+          "checksum": "",
+          "size": "",
+          "boards": [
+            {
+              "name": "Siemens LOGO! 8.2 (Ethernet)"
+            }
+          ],
+          "toolsDependencies": []
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "energia",
+      "maintainer": "Andy4495",
+      "websiteURL": "https://github.com/Andy4495/TI_Platform_Cores_For_Arduino",
+      "email": "Submit issue on GitHub",
+      "platforms": [],
+      "tools": [
+        {
+          "name": "arm-none-eabi-gcc",
+          "version": "8.3.1-20190703",
+          "systems": [
+            {
+              "host": "i686-mingw32",
+              "url": "https://github.com/Andy4495/TI_Platform_Cores_For_Arduino/releases/download/v1.5.0/gcc-arm-none-eabi-8.3.1-20190703-windows.tar.bz2",
+              "archiveFileName": "gcc-arm-none-eabi-8.3.1-20190703-windows.tar.bz2",
+              "checksum": "SHA-256:3f0440376df0c66bd4c9ce7de78e6c4155c92fdb6758c7f5b699c357a618c9e8",
+              "size": "115480830"
+            },
+            {
+              "host": "x86_64-apple-darwin",
+              "url": "https://github.com/Andy4495/TI_Platform_Cores_For_Arduino/releases/download/v1.5.0/gcc-arm-none-eabi-8.3.1-20190703-mac.tar.bz2",
+              "archiveFileName": "gcc-arm-none-eabi-8.3.1-20190703-mac.tar.bz2",
+              "checksum": "SHA-256:fba079fcb5350fbb838b8310d5b61499c962861583091060e13ce0d21827d6e7",
+              "size": "110983957"
+            },
+            {
+              "host": "x86_64-pc-linux-gnu",
+              "url": "https://github.com/Andy4495/TI_Platform_Cores_For_Arduino/releases/download/v1.5.0/gcc-arm-none-eabi-8.3.1-20190703-x86_64-pc-linux-gnu.tar.bz2",
+              "archiveFileName": "gcc-arm-none-eabi-8.3.1-20190703-x86_64-pc-linux-gnu.tar.bz2",
+              "checksum": "SHA-256:8c9aa2728a12e8fad7dfb2647438e7ea4937dde1c3f771c5970466d8cc7e3397",
+              "size": "106503151"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

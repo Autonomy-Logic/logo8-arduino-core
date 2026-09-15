@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  uploader:
+    name: Uploader — test and cross-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: gofmt
+        working-directory: tools/logo-upload
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: go vet
+        working-directory: tools/logo-upload
+        run: go vet ./...
+      - name: go test
+        working-directory: tools/logo-upload
+        run: go test -v ./...
+      - name: Cross-compile all hosts
+        run: tools/ci/build-uploader.sh dist/tools
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logo-upload-binaries
+          path: dist/tools/
+
+  darwin-arm64-runs:
+    name: Uploader — runs on Apple Silicon
+    needs: uploader
+    runs-on: macos-14
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: logo-upload-binaries
+          path: dist/tools
+      - name: Execute the cross-compiled arm64 binary
+        run: |
+          set -euo pipefail
+          chmod +x dist/tools/arm64-apple-darwin/logo-upload
+          codesign -dv dist/tools/arm64-apple-darwin/logo-upload 2>&1 | head -5 || true
+          set +e
+          out="$(dist/tools/arm64-apple-darwin/logo-upload 2>&1)"; rc=$?
+          set -e
+          printf '%s\n' "$out"
+          echo "exit=$rc"
+          # An unsigned Mach-O is SIGKILLed on Apple Silicon and would show 137.
+          [ "$rc" -eq 1 ] || { echo "expected usage exit 1, got $rc"; exit 1; }
+          printf '%s' "$out" | grep -q 'usage: logo-upload'
+
+  core:
+    name: Core — install from a locally built index and compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Build the release artefacts from this working tree
+        run: |
+          set -euo pipefail
+          tools/ci/build-uploader.sh dist/tools
+          python3 tools/ci/build-release.py --version 9.9.9 --out dist
+          # arduino-cli accepts file:// for the index but not for assets, so
+          # serve the artefacts over HTTP for the duration of the job.
+          (cd dist && nohup python3 -m http.server 8099 >/dev/null 2>&1 &)
+          for i in $(seq 20); do curl -sf http://127.0.0.1:8099/ >/dev/null && break; sleep 0.5; done
+          python3 tools/ci/localize-index.py \
+            dist/package_autonomylogic_tm4c_index.json http://127.0.0.1:8099
+      - name: Install the core
+        run: |
+          set -euo pipefail
+          IDX="file://$PWD/dist/package_autonomylogic_tm4c_index.json"
+          arduino-cli core update-index --additional-urls "$IDX"
+          arduino-cli core install autonomylogic:tm4c@9.9.9 --additional-urls "$IDX"
+          arduino-cli core list
+      - name: The uploader must be installed as a tool, and must run
+        run: |
+          set -euo pipefail
+          TOOL="$(find "$HOME/.arduino15/packages/autonomylogic/tools/logo-upload" -name logo-upload -type f | head -1)"
+          test -n "$TOOL" || { echo "logo-upload tool was not installed"; exit 1; }
+          echo "installed at: $TOOL"
+          set +e; "$TOOL" >/dev/null 2>&1; rc=$?; set -e
+          [ "$rc" -eq 1 ] || { echo "tool did not run (exit $rc)"; exit 1; }
+      - name: Compile the example sketch
+        run: |
+          set -euo pipefail
+          arduino-cli compile --fqbn autonomylogic:tm4c:logo8 \
+            --warnings default tools/ci/sketches/SmokeTest
+      - name: The upload recipe must name no host interpreter
+        run: |
+          set -euo pipefail
+          if grep -nE '^tools\..*\.pattern=.*(python|perl|ruby|bash| sh |/usr/bin)' platform.txt; then
+            echo "upload recipe depends on a host interpreter"; exit 1
+          fi
+          grep -q '^tools\.logoeth\.path={runtime\.tools\.logo-upload\.path}' platform.txt
+          echo "upload recipe is self-contained"
