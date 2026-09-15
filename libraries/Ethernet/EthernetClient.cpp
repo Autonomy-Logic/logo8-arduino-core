@@ -66,10 +66,9 @@ EthernetClient &EthernetClient::operator=(const EthernetClient &other) {
 }
 
 /* Retry a close that could not complete. Deliberately ignores `arg`: the
- * accepted-connection callback arg is a struct client*, and the old code
- * installed EthernetClient::do_poll here, which casts arg to EthernetClient*
- * -- a type confusion that read a server or a slot as if it were a client
- * object. Nothing about retrying a close needs either. */
+ * accepted-connection callback arg is a struct client*, and installing
+ * EthernetClient::do_poll here casts it to EthernetClient* -- a type confusion.
+ * Nothing about retrying a close needs either. */
 static err_t close_retry_poll(void *arg, struct tcp_pcb *cpcb) {
 	(void)arg;
 	err_t err = tcp_close(cpcb);
@@ -279,26 +278,10 @@ size_t EthernetClient::write(const uint8_t *buf, size_t size) {
 			}
 		}
 	}
-	// Flush any remaining queue contents.
-	//
-	// This used to be gated on `cs->mode`, which is true only for an OUTBOUND
-	// client and false for every connection an EthernetServer accepted -- so a
-	// server's reply was written into lwIP's send queue and then never pushed.
-	// tcp_write() only enqueues; tcp_output() is what puts a segment on the
-	// wire.
-	//
-	// Nothing else rescued it in time. lwIP calls tcp_output() at the end of
-	// tcp_input() (tcp_in.c), but that runs while the INCOMING segment is being
-	// processed -- before the application has even seen the request, let alone
-	// queued an answer. In a request/response protocol the peer is by
-	// definition waiting and sends nothing more, so the reply sat in the queue
-	// until the periodic TCP timer flushed it: TCP_TMR_INTERVAL, 250 ms.
-	//
-	// Measured on a LOGO! 8.2 before this change, over 15 exchanges each:
-	//   Modbus FC03    median 250.0 ms   (min 71, max 250.2)
-	//   OPC-UA Read    ~311 ms
-	// Both are the timer, not the work. Modbus, the debugger and OPC-UA were
-	// all paying it, on every single request.
+	// Flush any remaining queue contents. This used to be gated on `cs->mode`,
+	// which is false for every connection an EthernetServer accepted, so a
+	// server's reply was enqueued by tcp_write() and never pushed by
+	// tcp_output() until the periodic TCP timer flushed it 250 ms later.
 	if (!stuffed_buffer) {
 		tcp_output(cpcb);
 	}
@@ -483,17 +466,10 @@ uint8_t EthernetClient::connected() {
 	if (cs != &client_state) {
 		/*
 		 * Server-accepted connection: liveness is entirely a property of the
-		 * SLOT, so do not consult _connected at all.
-		 *
-		 * _connected is the outbound-connect handshake flag (do_connected /
-		 * do_err set it while ::connect spins). The server-side constructor
-		 * also sets it true, and nothing ever clears it -- so once a peer
-		 * disconnected with no new connection replacing it, connected()
-		 * returned TRUE FOREVER: available() is 0 and status() is CLOSED, but
-		 * `|| _connected` carried the result. A sketch that retires a
-		 * connection on !connected() -- which is the documented idiom -- would
-		 * therefore never retire that one, and the slot leaked until some
-		 * unrelated peer happened to recycle it.
+		 * SLOT, so do not consult _connected at all. It is the outbound-connect
+		 * handshake flag and nothing ever clears it, so once a peer disconnected
+		 * with no replacement, connected() returned true forever and the slot
+		 * leaked.
 		 */
 		return (available() || (status() == ESTABLISHED));
 	}

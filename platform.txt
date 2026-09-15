@@ -75,11 +75,8 @@ recipe.ar.pattern="{compiler.path}{compiler.ar.cmd}" {compiler.ar.flags} {compil
 
 ## Combine gc-sections, archives, and objects
 # arduino-cli substitutes this with the ldflags contributed by the sketch's
-# libraries, but only when at least one library actually contributes any.
-# Without a default it is left UNEXPANDED and handed to the linker verbatim
-# ("{compiler.libraries.ldflags}: No such file or directory"), which breaks
-# the link for an ordinary sketch. An empty default is overridden whenever
-# arduino-cli does have a value.
+# libraries, but only when at least one library contributes any. Without a
+# default it is handed to the linker unexpanded and the link fails.
 compiler.libraries.ldflags=
 
 recipe.c.combine.pattern="{compiler.path}{compiler.cpp.elf.cmd}" -mcpu={build.mcu} -mthumb -nostartfiles -nostdlib {compiler.c.elf.flags} "-T{build.variant.path}/{build.ldscript}" "-Wl,-Map,{build.path}/{build.project_name}.map" {compiler.c.elf.extra_flags} -o "{build.path}/{build.project_name}.elf" "-L{build.path}" -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=ResetISR -Wl,--unresolved-symbols=report-all -Wl,--warn-common {compiler.ldflags} -Wl,--start-group {object_files} "{build.path}/{archive_file}" {compiler.libraries.ldflags} -Wl,--end-group "{build.system.path}/driverlib/libdriverlib.a" -lm -lc -lgcc
