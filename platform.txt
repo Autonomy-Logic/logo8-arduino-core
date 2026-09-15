@@ -93,18 +93,15 @@ recipe.size.pattern="{compiler.path}{compiler.size.cmd}" -A "{build.path}/{build
 recipe.size.regex=\.text\s+([0-9]+).*
 recipe.size.regex.data=^(?:\.data|\.bss)\s+([0-9]+).*
 
-# TI's DSLite
-tools.dslite.upload.params.verbose=
-tools.dslite.upload.params.quiet=
-tools.dslite.path={runtime.tools.dslite-12.8.0.3522.path}
-tools.dslite.config.path={path}
-tools.dslite.cmd.path={path}/DebugServer/bin/DSLite
-tools.dslite.upload.pattern={cmd.path} {upload.verbose} load -c "{config.path}/{build.variant}.ccxml" -f "{build.path}/{build.project_name}.elf"
-
-
 # --- Ethernet upload to the resident loader (no serial/JTAG) ---
 # {upload.port.address} carries the device IP (default 192.168.2.4). The tool
 # reboots a running app into the bootloader, then streams the .bin over UDP:24.
+#
+# Shipped as a self-contained binary through the board-manager index, so the
+# upload needs no interpreter on the host. See tools/logo-upload/.
+tools.logoeth.path={runtime.tools.logo-upload.path}
+tools.logoeth.cmd=logo-upload
+tools.logoeth.cmd.windows=logo-upload.exe
 tools.logoeth.upload.params.verbose=--verbose
 tools.logoeth.upload.params.quiet=
-tools.logoeth.upload.pattern="python3" "{runtime.platform.path}/tools/logo-upload.py" "{build.path}/{build.project_name}.bin" --host {upload.port.address}
+tools.logoeth.upload.pattern="{tools.logoeth.path}/{tools.logoeth.cmd}" "{build.path}/{build.project_name}.bin" --host {upload.port.address} {upload.verbose}

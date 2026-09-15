@@ -1,9 +1,6 @@
-# Build artefacts from package.sh — the archive is published as a release
-# asset, not committed (the index points at the release URL).
+# Release artefacts: built by tools/ci/build-release.py and published as
+# release assets, never committed (the index points at the release URLs).
+dist/
 autonomylogic-tm4c-*.tar.bz2
+logo-upload-*.tar.gz
 .DS_Store
-
-# OPC-UA cross-build scratch: the pinned open62541 checkout and the built
-# archives. Reproduced by tools/opcua/build-open62541.sh, so not versioned.
-.opcua-build/
-dist/opcua/

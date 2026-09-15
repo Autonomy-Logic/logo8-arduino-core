@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (no leading v), e.g. 0.3.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, publish and update the index
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Resolve the version
+        id: ver
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "building $V"
+
+      - name: Test the uploader
+        working-directory: tools/logo-upload
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+          go vet ./...
+          go test ./...
+
+      - name: Build every artefact and the index
+        run: |
+          set -euo pipefail
+          tools/ci/build-uploader.sh dist/tools
+          python3 tools/ci/build-release.py --version "${{ steps.ver.outputs.version }}" --out dist
+          ls -la dist
+
+      # Install from the built artefacts before publishing them, so a broken
+      # archive fails the release instead of reaching users.
+      - name: Smoke-test the artefacts before publishing
+        run: |
+          set -euo pipefail
+          cp dist/package_autonomylogic_tm4c_index.json /tmp/index-local.json
+          (cd dist && nohup python3 -m http.server 8099 >/dev/null 2>&1 &)
+          for i in $(seq 20); do curl -sf http://127.0.0.1:8099/ >/dev/null && break; sleep 0.5; done
+          python3 tools/ci/localize-index.py /tmp/index-local.json http://127.0.0.1:8099
+          IDX="file:///tmp/index-local.json"
+          arduino-cli core update-index --additional-urls "$IDX"
+          arduino-cli core install "autonomylogic:tm4c@${{ steps.ver.outputs.version }}" --additional-urls "$IDX"
+          arduino-cli compile --fqbn autonomylogic:tm4c:logo8 tools/ci/sketches/SmokeTest
+          TOOL="$(find "$HOME/.arduino15/packages/autonomylogic/tools/logo-upload" -name logo-upload -type f | head -1)"
+          set +e; "$TOOL" >/dev/null 2>&1; rc=$?; set -e
+          [ "$rc" -eq 1 ] || { echo "packaged uploader did not run (exit $rc)"; exit 1; }
+          echo "artefacts install, compile and run"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="${{ steps.ver.outputs.version }}"
+          gh release view "v$V" >/dev/null 2>&1 \
+            && gh release upload "v$V" dist/*.tar.bz2 dist/*.tar.gz --clobber \
+            || gh release create "v$V" dist/*.tar.bz2 dist/*.tar.gz \
+                 --title "v$V" \
+                 --notes "Core $V. Self-contained \`logo-upload\` for 7 hosts; no interpreter needed on the host."
+
+      # The index is what consumers read, so it is committed only after the
+      # assets it points at exist.
+      - name: Commit the regenerated index
+        run: |
+          set -euo pipefail
+          cp dist/package_autonomylogic_tm4c_index.json package_autonomylogic_tm4c_index.json
+          if git diff --quiet -- package_autonomylogic_tm4c_index.json; then
+            echo "index unchanged"; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package_autonomylogic_tm4c_index.json
+          git commit -m "chore(release): point the index at v${{ steps.ver.outputs.version }}"
+          git push origin HEAD:main
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artefacts
+          path: dist/
