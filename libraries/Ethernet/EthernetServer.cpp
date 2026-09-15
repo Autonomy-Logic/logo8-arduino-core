@@ -29,16 +29,11 @@ err_t EthernetServer::do_poll(void *arg, struct tcp_pcb *cpcb) {
 
 void EthernetServer::do_close(void *arg, struct tcp_pcb *cpcb) {
 	/*
-	 * arg is the SLOT this connection was accepted into (set by do_accept),
-	 * so there is no lookup to get wrong.
-	 *
-	 * This used to search the table for `clients[i].port == cpcb->remote_port`.
-	 * Remote ports are NOT unique -- two peers on different hosts routinely
-	 * pick the same source port, and do_accept happily gives them two slots
-	 * carrying the same `port` value. The search then matched whichever came
-	 * first, so one connection's close (and, in do_recv, one connection's
-	 * DATA) was applied to the other. The pcb pointer is unique for the life
-	 * of the connection, and we already store it.
+	 * arg is the SLOT this connection was accepted into (set by do_accept), so
+	 * there is no lookup to get wrong. Searching the table for
+	 * `clients[i].port == cpcb->remote_port` was wrong because remote ports are
+	 * not unique: two peers routinely pick the same source port, and the search
+	 * then applied one connection's close or data to the other.
 	 */
 	struct client * cs = static_cast<struct client*>(arg);
 
@@ -109,20 +104,9 @@ err_t EthernetServer::do_recv(void *arg, struct tcp_pcb *cpcb, struct pbuf *p,
 
 /*
  * Fatal error on an accepted connection -- in practice a RST from the peer.
- *
- * do_accept() used to install no error callback at all, which is a
- * use-after-free: on RST lwIP calls the (NULL) errf and then does
- *
- *     tcp_pcb_remove(&tcp_active_pcbs, pcb); memp_free(MEMP_TCP_PCB, pcb);
- *
- * (tcp_in.c), returning the pcb to the pool while this slot still held a
- * pointer to it and a non-zero port. The next available() then read
- * `cpcb->state` out of a recycled pool entry -- which, being a pool, is very
- * likely a LIVE DIFFERENT connection -- and could hand the sketch a client
- * whose writes go to the wrong peer.
- *
- * lwIP has already freed the pcb by the time we get here, so this must touch
- * nothing but the slot: no tcp_close, no tcp_recved, no tcp_abort.
+ * do_accept() used to install no error callback, which is a use-after-free: lwIP
+ * frees the pcb on RST while this slot still points at it. lwIP has already
+ * freed it by the time we get here, so this must touch nothing but the slot.
  */
 void EthernetServer::do_err(void *arg, err_t err) {
 	(void)err;

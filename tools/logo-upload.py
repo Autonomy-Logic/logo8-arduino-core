@@ -13,10 +13,8 @@ Usage:
 """
 import argparse, socket, struct, sys, time, zlib
 
-# arduino-cli runs us with stdout on a pipe, which makes Python block-buffer it:
-# the editor would then get the whole log in one burst at the end, and progress
-# printed during a wait would arrive only after the wait was over — exactly the
-# "is it hung?" impression the progress exists to prevent. Line-buffer instead.
+# arduino-cli runs us with stdout on a pipe, which makes Python block-buffer it,
+# so progress would arrive in one burst at the end. Line-buffer instead.
 try:
     sys.stdout.reconfigure(line_buffering=True)
 except AttributeError:        # Python < 3.7

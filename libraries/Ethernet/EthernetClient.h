@@ -14,13 +14,10 @@ class EthernetClient : public Client {
 public:
 	EthernetClient();
 	EthernetClient(struct client *c);
-	/* `cs` points either at a slot owned by an EthernetServer or at this
-	 * object's OWN client_state. The implicitly generated copy operations
-	 * copy the pointer verbatim, so copying a self-owned client left the
-	 * copy pointing into the SOURCE object -- dangling as soon as the source
-	 * went out of scope, which for a returned-by-value client is immediately.
-	 * Today's call sites are saved by copy elision; these make it correct
-	 * rather than lucky. */
+	/* `cs` points either at a slot owned by an EthernetServer or at this object's
+	 * own client_state. The implicit copy operations copy the pointer verbatim,
+	 * so copying a self-owned client left the copy dangling as soon as the source
+	 * went out of scope. */
 	EthernetClient(const EthernetClient &other);
 	EthernetClient &operator=(const EthernetClient &other);
 
@@ -32,11 +29,9 @@ public:
 	virtual size_t write(uint8_t);
 	virtual size_t write(const uint8_t *buf, size_t size);
 	virtual int available();
-	/** Bytes that can be queued right now without blocking.
-	 *
-	 *  write() spins on delay(1) when lwIP's send buffer is full, which inside
-	 *  a PLC scan cycle is unbounded blocking -- measured as a 1.27 SECOND
-	 *  stall against a 20 ms cycle. A caller that must not block asks first. */
+	/** Bytes that can be queued right now without blocking. write() spins on
+	 *  delay(1) when lwIP's send buffer is full, which is unbounded blocking
+	 *  inside a PLC scan cycle, so a caller that must not block asks first. */
 	int availableForWrite();
 	virtual int read();
 	virtual int port();
@@ -61,11 +56,9 @@ private:
 	/* The generation this handle was created with. See struct client. */
 	uint16_t _generation;
 
-	/* True once the slot this handle refers to has been recycled for a
-	 * different connection. A stale handle must behave exactly like a closed
-	 * one: report not-connected, read nothing, write nothing, and above all
-	 * NOT stop() -- which would tear down whichever innocent peer now owns
-	 * the slot. */
+	/* True once the slot this handle refers to has been recycled for a different
+	 * connection. A stale handle must behave exactly like a closed one: report
+	 * not-connected, read nothing, write nothing, and above all not stop(). */
 	bool stale() const {
 		return (cs != &client_state) && (cs->generation != _generation);
 	}
