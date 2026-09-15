@@ -71,8 +71,7 @@ jobs:
           set -euo pipefail
           tools/ci/build-uploader.sh dist/tools
           python3 tools/ci/build-release.py --version 9.9.9 --out dist
-          # arduino-cli accepts file:// for the index but not for assets, so
-          # serve the artefacts over HTTP for the duration of the job.
+          # arduino-cli accepts file:// for the index but not for assets.
           (cd dist && nohup python3 -m http.server 8099 >/dev/null 2>&1 &)
           for i in $(seq 20); do curl -sf http://127.0.0.1:8099/ >/dev/null && break; sleep 0.5; done
           python3 tools/ci/localize-index.py \
@@ -92,10 +91,7 @@ jobs:
           echo "installed at: $TOOL"
           set +e; "$TOOL" >/dev/null 2>&1; rc=$?; set -e
           [ "$rc" -eq 1 ] || { echo "tool did not run (exit $rc)"; exit 1; }
-          # Invoke it the way arduino-cli's recipe does: the firmware path
-          # BEFORE the flags. Go's flag package stops parsing at the first
-          # positional, so a regression here silently ignores --host and
-          # uploads to the default address. Assert the flags were seen.
+          # arduino-cli's order: path before flags. Assert --host was seen.
           head -c 64 /dev/urandom > /tmp/fake.bin
           set +e
           out="$("$TOOL" /tmp/fake.bin --host 203.0.113.1 --retries 1 --timeout 0.2 2>&1)"
@@ -106,8 +102,6 @@ jobs:
           printf '%s' "$out" | grep -qv 'usage: logo-upload' \
             || { echo "tool fell back to usage"; exit 1; }
           # Without --host the tool must refuse, not fall back to an address.
-          # A plausible default is what turns a dropped flag into a silent
-          # upload to the wrong device.
           set +e
           noh="$("$TOOL" /tmp/fake.bin 2>&1)"; rc=$?
           set -e
@@ -127,8 +121,7 @@ jobs:
             echo "upload recipe depends on a host interpreter"; exit 1
           fi
           grep -q '^tools\.logoeth\.path={runtime\.tools\.logo-upload\.path}' platform.txt
-          # No board may carry a default device address: the upload target must
-          # always come from the caller.
+          # No board may carry a default device address.
           if grep -nE '^[a-z0-9_]+\.upload\.port\.address=' boards.txt; then
             echo "boards.txt hardcodes an upload address"; exit 1
           fi

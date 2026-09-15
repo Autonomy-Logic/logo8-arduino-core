@@ -1,11 +1,7 @@
 // logo-upload — push a compiled application to the device's Ethernet loader.
 //
-// Stop-and-wait UDP: WRQ -> AWRQ, then DATA/ADAT per block, then FIN -> AFIN.
-// A static binary so an Arduino platform.txt upload recipe can invoke it with
-// no interpreter on the host.
-//
-// Exit codes: 0 success, 2 WRQ rejected, 3 block error, 4 FIN failed,
-// 5 could not reach the bootloader, 6 the device's programming lock is on.
+// Exit codes: 0 ok, 2 WRQ rejected, 3 block error, 4 FIN failed, 5 no
+// bootloader, 6 programming lock on.
 package main
 
 import (
@@ -24,8 +20,6 @@ var (
 	stderr io.Writer = os.Stderr
 )
 
-// outf writes a progress line. os.Stdout is unbuffered in Go, so lines reach
-// arduino-cli's pipe as they are produced.
 func outf(format string, a ...any) { fmt.Fprintf(stdout, format+"\n", a...) }
 
 const (
@@ -41,9 +35,7 @@ const (
 func main() { os.Exit(run()) }
 
 func run() int {
-	// No default. A wrong-but-plausible default is how a dropped --host turns
-	// into a silent upload to whatever sits at that address; the flag-parsing
-	// bug this tool shipped once did exactly that.
+	// No default: a dropped --host must fail, not flash whatever answers there.
 	host := flag.String("host", "", "device IP address (required)")
 	port := flag.Int("port", 24, "device management UDP port")
 	timeout := flag.Float64("timeout", 1.0, "per-exchange timeout in seconds")
@@ -55,11 +47,6 @@ func run() int {
 			"                   [--timeout S] [--retries N] [--no-reboot] [--verbose]\n\n"+
 			"  --host is required: there is no default device address.\n")
 	}
-	// arduino-cli's recipe puts the firmware path BEFORE the flags:
-	//   logo-upload <file> --host <ip> --verbose
-	// Go's flag package stops parsing at the first non-flag argument, so the
-	// flags would be silently ignored. Lift the positional out first and parse
-	// what remains, which accepts either order.
 	firmware, rest := splitPositional(os.Args[1:])
 	if err := flag.CommandLine.Parse(rest); err != nil {
 		return exitUsageError
@@ -171,9 +158,9 @@ func run() int {
 	return exitOK
 }
 
-// splitPositional returns the first bare argument and everything else, so the
-// firmware path may appear before or after the flags. A value that belongs to
-// a preceding flag (--host 1.2.3.4) is not mistaken for the positional.
+// splitPositional lifts the firmware path out so flags may follow it, which
+// arduino-cli's recipe does and Go's flag package does not handle. A flag's own
+// value (--host 1.2.3.4) is not mistaken for the positional.
 func splitPositional(args []string) (string, []string) {
 	takesValue := map[string]bool{"-host": true, "-port": true, "-timeout": true, "-retries": true}
 	var positional string

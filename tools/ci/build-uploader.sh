@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 # Cross-compile the LOGO uploader for every host the index declares.
-#
-# Go builds all seven from one runner, including arm-linux-gnueabihf, which has
-# no GitHub-hosted runner. CGO is off so every binary is static and depends on
-# no system libc; -trimpath and a zeroed build id keep the output reproducible.
+# CGO off for static binaries; -trimpath and a zeroed build id for reproducibility.
 #
 #   tools/ci/build-uploader.sh dist/tools
 set -euo pipefail
 OUT="${1:-dist/tools}"
 mkdir -p "$OUT"
-# Absolute: the build runs from the module directory, so a relative -o would
-# land under tools/logo-upload/ instead of the requested output tree.
+# Absolute: the build runs from the module dir, so a relative -o would misplace it.
 OUT="$(cd "$OUT" && pwd)"
 here="$(cd "$(dirname "$0")/../logo-upload" && pwd)"
 
@@ -32,9 +28,7 @@ build x86_64-pc-linux-gnu  linux   amd64 ""  ""
 build aarch64-linux-gnu    linux   arm64 ""  ""
 build arm-linux-gnueabihf  linux   arm   7   ""
 
-# darwin/arm64 must carry at least an ad-hoc signature or macOS SIGKILLs it.
-# Go's internal linker applies one even when cross-compiling; assert the
-# LC_CODE_SIGNATURE load command is present rather than trusting that.
+# darwin/arm64 is SIGKILLed on Apple Silicon without an ad-hoc signature.
 if ! python3 - "$OUT/arm64-apple-darwin/logo-upload" <<'PY'
 import struct, sys
 with open(sys.argv[1], "rb") as f: data = f.read()

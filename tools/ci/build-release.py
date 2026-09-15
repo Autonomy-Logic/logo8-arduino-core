@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Build every release artefact and the index that describes them.
 
-One command so the archive, the tool binaries and the index cannot disagree
-about version, filename, size or SHA-256 -- arduino-cli refuses the download
-when they do, and hand-editing the index is what published a dead URL before.
+One command so the archive, the binaries and the index cannot disagree about
+version, filename, size or SHA-256.
 
   tools/ci/build-release.py --version 0.3.0 --out dist
 
@@ -18,9 +17,8 @@ build-uploader.sh.
 import argparse, hashlib, json, os, shutil, subprocess, sys, tarfile
 
 REPO = "Autonomy-Logic/logo8-arduino-core"
-# What the platform actually consists of; everything else in the repo is
-# repository furniture. `tools/` is deliberately absent -- the uploader now
-# ships as a board-manager tool, not inside the platform archive.
+# The platform itself. `tools/` is absent: the uploader ships as a
+# board-manager tool, not inside the platform archive.
 PLATFORM_CONTENT = ["boards.txt", "platform.txt", "programmers.txt",
                     "cores", "libraries", "system", "variants"]
 # Only the variants a board in boards.txt actually names.
@@ -58,11 +56,8 @@ def clean_tree(root):
                 os.remove(os.path.join(dirpath, n))
 
 def reproducible_tar(archive, stage, root, mode):
-    """Deterministic archive: sorted entries, zeroed mtime/uid/gid.
-
-    Two builds of the same commit must produce the same SHA-256, or the index
-    cannot be verified against a rebuild.
-    """
+    """Deterministic archive: sorted entries, zeroed mtime/uid/gid, so two
+    builds of a commit produce the same SHA-256."""
     def norm(ti):
         ti.uid = ti.gid = 0
         ti.uname = ti.gname = ""

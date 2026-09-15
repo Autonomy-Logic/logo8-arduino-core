@@ -143,13 +143,8 @@ func TestBlockPartitioning(t *testing.T) {
 	}
 }
 
-// arduino-cli's upload recipe puts the firmware path BEFORE the flags:
-//
-//	logo-upload <file> --host <ip> --verbose
-//
-// Go's flag package stops parsing at the first non-flag argument, so without
-// splitPositional every flag after the path is silently ignored and the upload
-// goes to the default host. This shipped once; it must not ship again.
+// arduino-cli invokes `logo-upload <file> --host <ip>`; flags after the path
+// were silently ignored once. Pin both orders.
 func TestSplitPositionalAcceptsEitherOrder(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -206,9 +201,8 @@ func TestSplitPositionalAcceptsEitherOrder(t *testing.T) {
 	}
 }
 
-// There is no default device address, on purpose. A plausible default is what
-// turned the earlier flag-parsing bug into a silent upload to whatever host
-// happened to answer at it, instead of an error the user could see.
+// No default device address: a dropped --host must fail, not flash whatever
+// answers at a fallback.
 func TestHostHasNoDefault(t *testing.T) {
 	src, err := os.ReadFile("main.go")
 	if err != nil {

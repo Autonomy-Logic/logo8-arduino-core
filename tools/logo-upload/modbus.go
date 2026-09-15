@@ -27,9 +27,8 @@ const (
 	rebootLocked
 )
 
-// mbTxn runs one Modbus/TCP request. It returns the response PDU; ok=false
-// means the device could not be reached, and an empty PDU with ok=true means
-// it reset before answering.
+// mbTxn runs one Modbus/TCP request. ok=false means unreachable; an empty PDU
+// with ok=true means the device reset before answering.
 func mbTxn(host string, pdu []byte, timeout time.Duration) ([]byte, bool) {
 	addr := net.JoinHostPort(host, fmt.Sprint(mbPort))
 	c, err := net.DialTimeout("tcp", addr, timeout)
@@ -79,10 +78,8 @@ func lockState(host string, timeout time.Duration) (byte, bool) {
 	return 0, false
 }
 
-// modbusReboot asks the running application to reboot into the loader via the
-// magic-guarded FC 0x4C. A locked device puts the question on its own display,
-// so we keep asking for lockWait to give whoever is standing there time to
-// answer, printing progress so the wait never looks like a hang.
+// modbusReboot asks the running app to reboot into the loader via FC 0x4C. A
+// locked device asks on its own display, so keep polling for lockWait.
 func modbusReboot(host string, v bool, timeout time.Duration) rebootResult {
 	pdu := append([]byte{fcReboot}, []byte(rebootMagic)...)
 
@@ -155,8 +152,8 @@ func modbusReboot(host string, v bool, timeout time.Duration) rebootResult {
 	return rebootLocked
 }
 
-// ensureBootloader puts the device into its loader over whichever channel it
-// answers on: UDP management, or Modbus TCP for an Ethernet-only application.
+// ensureBootloader puts the device into its loader over UDP mgmt, or Modbus
+// TCP for an Ethernet-only application.
 func ensureBootloader(c *conn, host string, v bool) rebootResult {
 	if role, ok := c.ident(600 * time.Millisecond); ok {
 		switch role {
