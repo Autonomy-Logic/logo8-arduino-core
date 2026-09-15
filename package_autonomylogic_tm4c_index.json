@@ -12,15 +12,15 @@
         {
           "name": "Autonomy Logic TM4C (LOGO! 8.2)",
           "architecture": "tm4c",
-          "version": "0.3.1",
+          "version": "0.3.2",
           "category": "Contributed",
           "help": {
             "online": "https://autonomylogic.com"
           },
-          "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.1/autonomylogic-tm4c-0.3.1.tar.bz2",
-          "archiveFileName": "autonomylogic-tm4c-0.3.1.tar.bz2",
-          "checksum": "SHA-256:b142999988a42a0b043c21e3d94be116879521ca672f08b9e907583aa6d7beda",
-          "size": "2590291",
+          "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.2/autonomylogic-tm4c-0.3.2.tar.bz2",
+          "archiveFileName": "autonomylogic-tm4c-0.3.2.tar.bz2",
+          "checksum": "SHA-256:699b999a5f35a895f9337c4406ad60a83eda8cd44fffd1590eedb61448a7aa5a",
+          "size": "2589732",
           "boards": [
             {
               "name": "Siemens LOGO! 8.2 (Ethernet)"
@@ -35,7 +35,7 @@
             {
               "packager": "autonomylogic",
               "name": "logo-upload",
-              "version": "0.3.1"
+              "version": "0.3.2"
             }
           ]
         }
@@ -43,56 +43,56 @@
       "tools": [
         {
           "name": "logo-upload",
-          "version": "0.3.1",
+          "version": "0.3.2",
           "systems": [
             {
               "host": "x86_64-mingw32",
-              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.1/logo-upload-0.3.1-x86_64-mingw32.tar.gz",
-              "archiveFileName": "logo-upload-0.3.1-x86_64-mingw32.tar.gz",
-              "checksum": "SHA-256:c1609c25f6fba360a95acd2bd5103fe6fd0d2566b9a6b288f6a77278feee76a1",
-              "size": "922634"
+              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.2/logo-upload-0.3.2-x86_64-mingw32.tar.gz",
+              "archiveFileName": "logo-upload-0.3.2-x86_64-mingw32.tar.gz",
+              "checksum": "SHA-256:bb293bbd95703fc3cfa888b7e39d965cea4d871c415be88e759f99ca48193a9b",
+              "size": "924506"
             },
             {
               "host": "i686-mingw32",
-              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.1/logo-upload-0.3.1-i686-mingw32.tar.gz",
-              "archiveFileName": "logo-upload-0.3.1-i686-mingw32.tar.gz",
-              "checksum": "SHA-256:95509b6c5cc5a02b1ba7c739b92b518ebcdae1cc4750cf1b129efbb4417874d7",
-              "size": "896268"
+              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.2/logo-upload-0.3.2-i686-mingw32.tar.gz",
+              "archiveFileName": "logo-upload-0.3.2-i686-mingw32.tar.gz",
+              "checksum": "SHA-256:dc4bd18f8bd0410e9902af606c12b75702b49f1e6f2ff7fe954405cf9d172ad2",
+              "size": "898702"
             },
             {
               "host": "x86_64-apple-darwin",
-              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.1/logo-upload-0.3.1-x86_64-apple-darwin.tar.gz",
-              "archiveFileName": "logo-upload-0.3.1-x86_64-apple-darwin.tar.gz",
-              "checksum": "SHA-256:5a14afeaadb7b48e2e450dfef72b91b881cbf330b5dad333047d799a67a6c44a",
-              "size": "899300"
+              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.2/logo-upload-0.3.2-x86_64-apple-darwin.tar.gz",
+              "archiveFileName": "logo-upload-0.3.2-x86_64-apple-darwin.tar.gz",
+              "checksum": "SHA-256:aed42949bde9b9df52801a268ed8734c747832bc6885360e3bb7f94ccc98de8c",
+              "size": "902485"
             },
             {
               "host": "arm64-apple-darwin",
-              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.1/logo-upload-0.3.1-arm64-apple-darwin.tar.gz",
-              "archiveFileName": "logo-upload-0.3.1-arm64-apple-darwin.tar.gz",
-              "checksum": "SHA-256:1919d5f030deea685f07e4c9cd092eab66ea33cdb9cfec6cfa5ffff7b51ff3ee",
-              "size": "859538"
+              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.2/logo-upload-0.3.2-arm64-apple-darwin.tar.gz",
+              "archiveFileName": "logo-upload-0.3.2-arm64-apple-darwin.tar.gz",
+              "checksum": "SHA-256:5f2dccbdc0237f3216a544b2bcbaa7eddc8561149f7a4f0566408866886b7e41",
+              "size": "860871"
             },
             {
               "host": "x86_64-pc-linux-gnu",
-              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.1/logo-upload-0.3.1-x86_64-pc-linux-gnu.tar.gz",
-              "archiveFileName": "logo-upload-0.3.1-x86_64-pc-linux-gnu.tar.gz",
-              "checksum": "SHA-256:045f047e0e74953fc4871e97b4e15ecc4ba9847b6384698e84ed6f440fe6e5c9",
-              "size": "868537"
+              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.2/logo-upload-0.3.2-x86_64-pc-linux-gnu.tar.gz",
+              "archiveFileName": "logo-upload-0.3.2-x86_64-pc-linux-gnu.tar.gz",
+              "checksum": "SHA-256:23cb0fb77a25a79290d0091f93a73a9e17a627e91727581c233d630e2600bbb0",
+              "size": "870944"
             },
             {
               "host": "aarch64-linux-gnu",
-              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.1/logo-upload-0.3.1-aarch64-linux-gnu.tar.gz",
-              "archiveFileName": "logo-upload-0.3.1-aarch64-linux-gnu.tar.gz",
-              "checksum": "SHA-256:43db7617016111314319e7d15bb851c92a052f6fe93573569f0418dd82ab48a6",
-              "size": "812202"
+              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.2/logo-upload-0.3.2-aarch64-linux-gnu.tar.gz",
+              "archiveFileName": "logo-upload-0.3.2-aarch64-linux-gnu.tar.gz",
+              "checksum": "SHA-256:d6c793e3dd308ef059c28f7c5c9fc48292332eedaec933709b6b673b36975510",
+              "size": "814695"
             },
             {
               "host": "arm-linux-gnueabihf",
-              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.1/logo-upload-0.3.1-arm-linux-gnueabihf.tar.gz",
-              "archiveFileName": "logo-upload-0.3.1-arm-linux-gnueabihf.tar.gz",
-              "checksum": "SHA-256:461aaa36a73cbd13dc87cb15ee17119271e1a770c09aecf857a22c79e1adddd5",
-              "size": "830198"
+              "url": "https://github.com/Autonomy-Logic/logo8-arduino-core/releases/download/v0.3.2/logo-upload-0.3.2-arm-linux-gnueabihf.tar.gz",
+              "archiveFileName": "logo-upload-0.3.2-arm-linux-gnueabihf.tar.gz",
+              "checksum": "SHA-256:f4fe17f67adab872dc750114e79fa5d6856d524e07046c88b45bea02ea29890d",
+              "size": "832463"
             }
           ]
         }
