@@ -183,18 +183,44 @@ void EthernetServer::begin() {
 
 EthernetClient EthernetServer::available() {
 	uint8_t i;
-	/* Find active client */
+	/* Find a client WITH DATA WAITING, round-robin.
+	 *
+	 * The pending-data test is the Arduino contract, not an optimisation.
+	 * Ethernet 2.x returns a socket from available() only when
+	 * socketRecvAvailable() > 0, and every sketch written against that library
+	 * -- including OpenPLC's Modbus/TCP server -- reads straight from whatever
+	 * this hands back, without checking first.
+	 *
+	 * Returning an established-but-idle client instead made those reads come up
+	 * empty, leaving the caller's own parse buffer holding the PREVIOUS message.
+	 * In OpenPLC that buffer is the MBAP header, whose length field then governed
+	 * the next body read, so a request arriving in the window between the two
+	 * reads was consumed as a body, failed the length check and was discarded
+	 * whole: no reply, no leftover bytes, nothing logged. Measured at 2-3% of all
+	 * Modbus/TCP requests on a LOGO! 8.2.
+	 *
+	 * A caller that wants each connection handed over exactly once, data or not,
+	 * wants accept() -- which is what the protocol servers in this image use. */
 	for (i = 0; i < MAX_CLIENTS; i++) {
 		if (++lastClient >= MAX_CLIENTS)
 			lastClient = 0;
 		if (clients[lastClient].port != 0) {
 			/* cpcb may change to NULL during interrupt servicing, so avoid the NULL pointer access */
 			struct tcp_pcb * cpcb = (tcp_pcb*)clients[lastClient].cpcb;
-			if (cpcb && cpcb->state == ESTABLISHED)
-				return EthernetClient(&clients[lastClient]);
+			if (cpcb && cpcb->state == ESTABLISHED) {
+				/* Read the queue directly rather than through an
+				 * EthernetClient temporary: constructing one writes to the
+				 * slot (cs->mode), and a probe must not mutate it. p and read
+				 * may both change under the Ethernet interrupt, so take one
+				 * snapshot of each. */
+				struct pbuf * p = (pbuf*)clients[lastClient].p;
+				uint16_t consumed = clients[lastClient].read;
+				if (p && p->tot_len > consumed)
+					return EthernetClient(&clients[lastClient]);
+			}
 		}
 	}
-	/* No client connection active */
+	/* No client with data */
 	return EthernetClient(NULL);
 }
 
